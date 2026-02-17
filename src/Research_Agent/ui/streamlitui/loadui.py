@@ -9,8 +9,8 @@ import os
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
 
-from langgraphagenticai.ui.uiconfigfile import UIConfig
-from langgraphagenticai.ui.streamlitui.display_result import display_chat_history, display_message
+from Research_Agent.ui.uiconfigfile import UIConfig
+from Research_Agent.ui.streamlitui.display_result import display_chat_history, display_message
 
 
 def initialize_ui():

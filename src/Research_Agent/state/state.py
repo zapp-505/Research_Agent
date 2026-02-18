@@ -1,27 +1,25 @@
-"""
-State management for the LangGraph application
-"""
 
-from typing import TypedDict, Optional
+from typing import Annotated, Literal, List
+from typing_extensions import TypedDict
+from langgraph.graph.message import add_messages
+from langchain_core.messages import BaseMessage
+from pydantic import BaseModel, Field
+import operator
 
+class InterpretedContext(BaseModel):
+    domain: str
+    interpreted_goal: str
+    assumptions: list[str]
+    confidence: Literal["high", "medium", "low"]
 
-class AgentState(TypedDict):
+class State(TypedDict):
     """
-    State schema for the agent
+    Represent the structure of the state used in graph
     """
-    user_input: Optional[str]
-    bot_response: Optional[str]
-    messages: list
-    intermediate_steps: list
-
-
-def create_initial_state():
-    """
-    Create and return initial state
-    """
-    return AgentState(
-        user_input=None,
-        bot_response=None,
-        messages=[],
-        intermediate_steps=[]
-    )
+    raw_input: str
+    messages: Annotated[List[BaseMessage],add_messages]
+    interpreted_context: InterpretedContext | None
+    gathered_data: Annotated[List,operator.add]
+    is_confirmed: bool
+    iteration_count: int
+    user_corrections: Annotated[list[str], operator.add]

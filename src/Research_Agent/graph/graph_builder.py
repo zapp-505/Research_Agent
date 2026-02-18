@@ -1,29 +1,18 @@
-"""
-Graph builder module for constructing LangGraph workflows
-"""
-
+from langgraph.graph import StateGraph
+from src.Research_Agent.state.state import AgentState
+from langgraph.graph import START,END
 class GraphBuilder:
     """
     Builder class for creating and managing LangGraph graphs
     """
     
-    def __init__(self):
-        self.graph = None
+    def __init__(self,model):
+        self.llm = model
+        self.graph_builder = StateGraph(AgentState)
     
     def build(self):
         """
         Build and return the graph
         """
-        pass
-    
-    def add_node(self, name, node):
-        """
-        Add a node to the graph
-        """
-        pass
-    
-    def add_edge(self, from_node, to_node):
-        """
-        Add an edge between nodes
-        """
-        pass
+        self.graph_builder.add_node()
+        self.graph_builder.add_edge(START,)

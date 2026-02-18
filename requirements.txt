@@ -6,3 +6,5 @@ tavily-python
 chainlit
 pydantic
 python-dotenv
+chromadb
+semanticscholar

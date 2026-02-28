@@ -1,4 +1,4 @@
-# Mini_Proj
+# Research Agent Simulator 
 
 ## Overview
 
@@ -89,6 +89,7 @@ This will launch the React app on `http://localhost:3000`.
 ## License
 
 MIT
+
 
 
 

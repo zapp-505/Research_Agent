@@ -25,13 +25,16 @@ class State(TypedDict):
     """
     Shared state that flows through every node in the graph.
 
-    raw_input           – The user's original, unprocessed query.
+    raw_input           - The user's original, unprocessed query.
     messages            – Simple list of {"role": str, "content": str} dicts.
     interpreted_context – Pydantic model produced by the analyze node.
     gathered_data       – Accumulated research output (append-only).
     is_confirmed        – True once the user confirms the interpretation.
     iteration_count     – Number of analyze→present→classify loops completed.
     user_corrections    – Corrections fed back into each analyze pass (append-only).
+    the type declaration specifies what values field is allowed to hold. msgs, gathered etc are never none and always lists, but interprtcon is diff and as no context is there unless an analysis is performedtherefore optional or else a dummy instance of i_c would be created of the class
+
+    each node then fills in whatever part of the dict it is responsibe for 
     """
     raw_input:           str
     messages:            Annotated[List[dict], operator.add]

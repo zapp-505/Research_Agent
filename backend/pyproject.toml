@@ -5,7 +5,9 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "certifi>=2026.1.4",
     "chainlit>=2.9.6",
+    "chromadb>=1.5.2",
     "fastapi>=0.100.0",
     "jsonpatch>=1.33",
     "langchain>=1.2.10",
@@ -13,8 +15,11 @@ dependencies = [
     "langchain-core>=1.2.13",
     "langchain-groq>=1.1.2",
     "langgraph>=1.0.8",
+    "langgraph-checkpoint-mongodb>=0.3.1",
     "pydantic>=2.12.5",
+    "pymongo>4.0",
     "python-dotenv>=1.2.1",
+    "semanticscholar>=0.11.0",
     "streamlit>=1.54.0",
     "tavily-python>=0.7.21",
     "uvicorn[standard]>=0.40.0",

@@ -8,3 +8,6 @@ pydantic
 python-dotenv
 chromadb
 semanticscholar
+pymongo>4.0
+certifi
+langgraph-checkpoint-mongodb

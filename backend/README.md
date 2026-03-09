@@ -1,8 +1,222 @@
-# 🔬 Research Agent — Human-in-the-Loop Research Assistant
+# Backend
 
-An AI-powered research agent built with **LangGraph** that interprets ambiguous user queries, validates its understanding through a human-in-the-loop confirmation step, and generates structured research reports — all orchestrated as a formal state machine.
+FastAPI server that exposes the LangGraph research agent over HTTP, secured with Firebase authentication.
 
 ---
+
+## Directory Structure
+
+```
+backend/
+├── app.py                          # FastAPI app — all HTTP endpoints
+├── main.py                         # Entrypoint stub
+├── requirements.txt                # Python dependencies
+├── pyproject.toml
+└── src/
+    ├── config.py                   # Loads env vars (API keys, Firebase path)
+    ├── constants.py                # LLM model names, temperature constants
+    ├── auth.py                     # Firebase Admin init + get_current_user dependency
+    └── Research_Agent/
+        ├── state/state.py          # Shared graph state (TypedDict + Pydantic models)
+        ├── graph/graph_builder.py  # Wires nodes into the LangGraph StateGraph
+        ├── nodes/
+        │   ├── analyze_node.py     # Phase 1: interpret user query → InterpretedContext
+        │   ├── present_node.py     # Phase 2: format summary + interrupt() for confirmation
+        │   ├── classify_node.py    # Phase 3: classify user reply (CONFIRMED/CORRECTED/REJECTED)
+        │   └── research_node.py    # Phase 4: generate full research report
+        ├── LLMS/
+        │   ├── groqllm.py          # Groq ChatGroq factory (get_llm) — primary LLM
+        │   └── geminillm.py        # Gemini LLM factory (available, not in active flow)
+        └── tools/
+            └── search_tool.py      # Tavily web search tool wrapper
+```
+
+---
+
+## Setup
+
+### 1. Create and activate a virtual environment
+
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+### 2. Install dependencies
+
+```powershell
+pip install -r requirements.txt
+```
+
+### 3. Configure environment variables
+
+Create a `.env` file in `backend/`:
+
+```env
+GROQ_API_KEY=your_groq_api_key
+TAVILY_API_KEY=your_tavily_api_key
+GEMINI_API_KEY=your_gemini_api_key          # optional, not in active flow
+FIREBASE_SERVICE_ACCOUNT=path/to/serviceAccountKey.json
+```
+
+Get your Firebase service account key from:
+**Firebase Console → Project Settings → Service Accounts → Generate new private key**
+
+### 4. Run the server
+
+```powershell
+uvicorn app:app --reload
+```
+
+Server runs on `http://localhost:8000`.
+
+---
+
+## API Endpoints
+
+| Method | Path           | Auth | Description                                      |
+|--------|----------------|------|--------------------------------------------------|
+| GET    | `/index`       | No   | Health check                                     |
+| GET    | `/auth/verify` | Yes  | Verifies Firebase token, returns uid/email/name  |
+| POST   | `/chat/start`  | Yes  | Starts a new research conversation               |
+| POST   | `/chat/resume` | Yes  | Resumes a paused conversation                    |
+
+All protected endpoints require `Authorization: Bearer <Firebase ID token>`.
+
+### POST /chat/start
+
+```json
+Request:  { "query": "Tell me about agricultural drone technology" }
+
+Response (paused, waiting for confirmation):
+{ "status": "waiting", "message": "Here's what I understood...", "thread_id": "uuid" }
+
+Response (if graph completes without interrupt):
+{ "status": "complete", "message": "<research report>", "thread_id": "uuid" }
+```
+
+### POST /chat/resume
+
+```json
+Request:  { "thread_id": "uuid", "user_response": "yes" }
+
+Response: { "status": "complete", "message": "<research report>", "thread_id": "uuid" }
+      or: { "status": "waiting", "message": "...", "thread_id": "uuid" }  (another loop)
+```
+
+---
+
+## Authentication (`src/auth.py`)
+
+Firebase Admin SDK verifies ID tokens server-side. No passwords are stored.
+
+**Flow:**
+1. Client signs in with Firebase (email/password, Google, etc.) and gets an **ID token**
+2. Client sends the token on every request: `Authorization: Bearer <id_token>`
+3. `get_current_user` dependency calls `firebase_admin.auth.verify_id_token(token)`
+4. Returns decoded claims dict: `{ "uid": "...", "email": "...", "name": "..." }`
+
+**Getting a token from Python (Streamlit / script):**
+
+```python
+import requests
+
+resp = requests.post(
+    "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword"
+    "?key=YOUR_FIREBASE_WEB_API_KEY",
+    json={"email": "user@example.com", "password": "pass", "returnSecureToken": True}
+)
+id_token = resp.json()["idToken"]
+headers = {"Authorization": f"Bearer {id_token}"}
+```
+
+---
+
+## Key Files Explained
+
+### `src/config.py`
+Loads all secrets from `.env` via `python-dotenv`. Always import constants from here — never call `os.environ` directly in node files.
+
+### `src/constants.py`
+Centralised values:
+- `GROQ_LLM_MODEL_NAME = "llama-3.3-70b-versatile"`
+- `TEMPERATURE_CREATIVE = 0.7` — used by research_node for creative output
+- `TEMPERATURE_STRICT = 0.0` — used by classify_node for deterministic classification
+
+### `src/Research_Agent/state/state.py`
+
+```python
+class InterpretedContext(BaseModel):
+    domain: str               # e.g. "Agricultural Drone Technology"
+    interpreted_goal: str     # one-sentence description of user's goal
+    assumptions: list[str]    # gaps filled in by the LLM
+    confidence: Literal["high", "medium", "low"]
+
+class State(TypedDict):
+    raw_input:           str
+    messages:            Annotated[List[dict], operator.add]        # append-only
+    interpreted_context: Optional[InterpretedContext]
+    gathered_data:       Annotated[List[str], operator.add]         # append-only
+    is_confirmed:        bool
+    iteration_count:     int
+    user_corrections:    Annotated[List[str], operator.add]         # append-only
+```
+
+`Annotated[..., operator.add]` means LangGraph **appends** node updates to the list instead of replacing it.
+
+### `src/Research_Agent/graph/graph_builder.py`
+- Builds a `StateGraph` with a `MemorySaver` checkpoint store
+- **`MemorySaver` is in-process RAM** — state is lost on server restart; swap for `AsyncPostgresSaver` for production
+- The compiled graph is a **module-level singleton** — created once at startup, shared across all requests
+- Each conversation is isolated by a UUID `thread_id` generated in `/chat/start`
+
+---
+
+## LangGraph Interrupt / Resume Pattern
+
+This is the core mechanism that lets the agent pause mid-execution across two separate HTTP requests:
+
+```
+/chat/start invoked
+    │
+    ├── agent.invoke(initial_state, config)
+    │       │
+    │       └── present_node calls interrupt({"summary": "..."})
+    │               LangGraph saves state to MemorySaver, stops execution
+    │
+    └── _run_and_respond() sees state.next is not empty
+        returns: { "status": "waiting", "message": summary, "thread_id": ... }
+
+/chat/resume invoked (same thread_id)
+    │
+    ├── agent.invoke(Command(resume=user_response), config)
+    │       │
+    │       └── LangGraph restores state, continues from present_node
+    │           present_node returns the user_response
+    │           classify_node runs next
+    │
+    └── _run_and_respond() returns "complete" or "waiting" (if another loop)
+```
+
+---
+
+## Dependencies
+
+| Package            | Purpose                                      |
+|--------------------|----------------------------------------------|
+| `langgraph`        | Agent state machine + interrupt/resume       |
+| `langchain`        | LLM abstraction layer                        |
+| `langchain-groq`   | Groq LLM integration                         |
+| `langchain-community` | Tavily search tool                        |
+| `fastapi`          | HTTP API framework                           |
+| `uvicorn`          | ASGI server                                  |
+| `tavily-python`    | Web search API client                        |
+| `pydantic`         | Data validation / structured LLM output      |
+| `python-dotenv`    | Load `.env` file                             |
+| `firebase-admin`   | Firebase token verification (server-side)    |
+| `chromadb`         | Vector store (available, not in active flow) |
+| `semanticscholar`  | Academic search (available, not in active flow) |
 
 ## 🎯 Goal
 

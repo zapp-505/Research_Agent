@@ -1,90 +1,103 @@
-# Research Agent Simulator 
+# Research Agent
 
-## Overview
+An AI-powered research assistant with a human-in-the-loop confirmation step. The user submits a query, the agent interprets it and presents a structured summary for confirmation, then generates a full research report.
 
-This repository contains a small proof‑of‑concept agentic AI application built using **LangGraph** on the backend and a **React** frontend. The system implements a human‑in‑the‑loop research assistant: user queries are progressively interpreted, clarified, and then researched by a language model.
+---
 
-The workspace is divided into two top‑level folders:
-
-- `backend/` – Python backend powered by FastAPI (TODO) and LangGraph. It defines the agent graph, state types, LLM integrations, and a lightweight HTTP API.
-- `ai-frontend/` – Create React App based UI managing multiple chat threads. It sends user messages to the backend and displays responses.
-
-## Backend architecture
-
-The backend uses LangGraph to define a state‑machine graph with four primary nodes:
+## Project Structure
 
 ```
-START → analyze → present → classify → [analyze loop | research] → END
+Research_Agent/
+├── backend/          # FastAPI server + LangGraph agent (Python)
+└── ai-frontend/      # React frontend (not used for MVP — Streamlit is used instead)
 ```
 
-- **State definition** – a `TypedDict` describing the shared mutable context that flows through every node (`backend/src/Research_Agent/state/state.py`).
-- **Nodes** – each node is a pure function that takes the current state, invokes an LLM or performs other logic, and returns a dict of updates. Nodes live under `backend/src/Research_Agent/nodes/`.
-- **Graph builder** – wires nodes together and compiles a `StateGraph` instance with a `MemorySaver` checkpoint. The compiled graph is exposed as a singleton for requests via `backend/src/Research_Agent/graph/graph_builder.py`.
-- **LLM integrations** – abstraction wrappers around Groq models are in `backend/src/Research_Agent/LLMS/`.
+---
 
-The project currently includes a sketch of the FastAPI entrypoint (`backend/app.py`) with `TODO` comments where HTTP endpoints should be added.
+## How It Works (End-to-End)
 
-### Run‑ID and state management
-
-Every conversation is represented by a single state dict owned by a LangGraph run. When you start a new chat (via `compiled_graph.start(...)`), the graph returns a run ID. This ID is used to resume the same state on subsequent messages. The frontend stores this ID in each chat thread.
-
-### Testing and experimentation
-
-A simple standalone example graph lives in `backend/src/Research_Agent/testing/contextBuilder.py` which illustrates the same pattern with clarifying questions, interrupt/resume, and final research output.
-
-## Frontend architecture
-
-The React app (`ai-frontend/`) maintains local state for:
-
-- `chats` – list of conversation objects, each with messages and `threadId` (the backend run ID).
-- `activeChat` – index of the currently selected chat.
-- `agentPhase` – whether the agent is idle, waiting for confirmation, typing, or complete.
-
-Key behavior in `src/App.js`:
-
-- On a first message or when the agent is idle, POST to `/chat/start` with the user query. The backend responds with a `thread_id` and the AI reply.
-- When waiting for a continuation, POST to `/chat/resume` with `thread_id` and the new user response.
-- `newChat()` resets UI state and clears the `threadId` to start a fresh conversation.
-
-UI components under `src/components` manage the chat interface, input bar, sidebar, etc.
-
-## Getting started
-
-### Prerequisites
-
-- Python 3.11+ (backend uses `venv` in `backend/.venv`)
-- Node.js 18+ / npm or yarn
-- Groq API key set in `.env` for backend
-
-### Backend
-
-```powershell
-cd backend
-python -m venv .venv
-. .venv/Scripts/Activate.ps1
-pip install -r requirements.txt
-# run development server once endpoints are implemented
-python app.py
+```
+User submits query
+        │
+        ▼
+POST /chat/start  (Firebase ID token required)
+        │
+        ▼
+  [analyze_node]     Groq LLM parses the query into:
+                     domain, goal, assumptions, confidence
+        │
+        ▼
+  [present_node]     Formats a human-readable summary.
+                     LangGraph interrupt() pauses the graph here.
+                     API returns: { status: "waiting", message: <summary> }
+        │
+        ▼
+User reads summary, replies (yes / correction / reject)
+        │
+        ▼
+POST /chat/resume  (same thread_id, Firebase token required)
+        │
+        ▼
+  [classify_node]    Groq LLM classifies the reply:
+                     CONFIRMED → proceed to research
+                     CORRECTED → loop back to analyze with corrections
+                     REJECTED  → loop back to analyze, corrections cleared
+        │
+   CONFIRMED │
+        ▼
+  [research_node]    Optionally runs a Tavily web search.
+                     Groq LLM generates full structured report.
+                     API returns: { status: "complete", message: <report> }
 ```
 
-Replace `python app.py` with a FastAPI server command (e.g. `uvicorn app:app --reload`) once the HTTP routes are added.
+---
 
-### Frontend
+## Tech Stack
 
-```bash
-cd ai-frontend
-npm install
-npm start
+| Layer            | Technology                              |
+|------------------|-----------------------------------------|
+| Agent framework  | LangGraph                               |
+| LLM              | Groq — `llama-3.3-70b-versatile`        |
+| Web search       | Tavily                                  |
+| API server       | FastAPI + Uvicorn                       |
+| Auth             | Firebase Admin SDK (ID token verify)    |
+| Frontend (MVP)   | Streamlit (planned)                     |
+
+---
+
+## API Endpoints
+
+| Method | Path           | Auth required | Description                                      |
+|--------|----------------|---------------|--------------------------------------------------|
+| GET    | `/index`       | No            | Health check                                     |
+| GET    | `/auth/verify` | Yes           | Verifies Firebase token, returns uid/email/name  |
+| POST   | `/chat/start`  | Yes           | Starts a new research conversation               |
+| POST   | `/chat/resume` | Yes           | Resumes a paused conversation                    |
+
+All protected endpoints require `Authorization: Bearer <Firebase ID token>`.
+
+### POST /chat/start
+
+```json
+Request:  { "query": "Tell me about agricultural drone technology" }
+Response (waiting): { "status": "waiting", "message": "...", "thread_id": "uuid" }
+Response (complete): { "status": "complete", "message": "...", "thread_id": "uuid" }
 ```
 
-This will launch the React app on `http://localhost:3000`.
+### POST /chat/resume
 
-## Extending the project
+```json
+Request:  { "thread_id": "uuid", "user_response": "yes" }
+Response: { "status": "complete", "message": "..." , "thread_id": "uuid" }
+```
 
-- **Add FastAPI endpoints** in `backend/app.py` for `/chat/start`, `/chat/resume`, and `/health` using the compiled graph. See the earlier discussion in this thread for sample code.
-- **Persist state** using a different checkpointer (Redis, database) instead of `MemorySaver` if you need durability across restarts.
-- **Enhance UI** with authentication, user sessions, or conversation storage.
-- **Refactor state** with more detailed typed models as the agent becomes more complex.
+---
+
+## Setup & Running
+
+See [backend/README.md](backend/README.md) for full setup instructions.
+
+---
 
 ## License
 

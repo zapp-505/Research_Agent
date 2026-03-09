@@ -2,9 +2,12 @@ langgraph
 langchain
 langchain-groq
 langchain-community
+fastapi
+uvicorn[standard]
 tavily-python
 chainlit
 pydantic
 python-dotenv
 chromadb
 semanticscholar
+firebase-admin

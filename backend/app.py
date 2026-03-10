@@ -6,7 +6,7 @@ from typing import Optional
 from langgraph.types import Command
 
 from src.Research_Agent.graph.graph_builder import GraphBuilder
-from backend.src.auth import get_current_user
+from src.auth import get_current_user
 
 app = FastAPI()
 

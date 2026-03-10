@@ -10,4 +10,10 @@ pydantic
 python-dotenv
 chromadb
 semanticscholar
+<<<<<<< HEAD
 firebase-admin
+=======
+pymongo>4.0
+certifi
+langgraph-checkpoint-mongodb
+>>>>>>> 5995caf81143f0c4bd6681bb2ec31944e086c90c

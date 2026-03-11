@@ -1,15 +1,16 @@
 from pymongo import AsyncMongoClient
 from src.config import MONGODB_URI
-from src.logging import logger
+from src.logging.logger import logging 
+from motor.motor_asyncio import AsyncIOMotorClient
 
 class MongoDB:
-    client: AsyncMongoClient = None
+    client: AsyncIOMotorClient = None
     db = None
 
     @classmethod
     async def connect(cls):
         # Create a single client instance
-        cls.client = AsyncMongoClient(MONGODB_URI)
+        cls.client = AsyncIOMotorClient(MONGODB_URI)
         cls.db = cls.client['research_agent']
         logger.info("Connected to MongoDB")
 

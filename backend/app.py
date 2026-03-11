@@ -19,12 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ============= Build the LangGraph agent once at startup =============
-_builder = GraphBuilder()
-agent = _builder.build()
 
-
-# ============= Data Models =============
 class ChatStartRequest(BaseModel):
     query: str
 

@@ -5,10 +5,10 @@ from datetime import datetime
 LOG_FILE=f"{datetime.now().strftime('%m_%d_%Y_%H_%M_%S')}.log"
 
 #cwd point to where you ran the script
-logs_path=os.path.join(os.getcwd(),"logs",LOG_FILE)
-os.makedirs(logs_path,exist_ok=True)
+logs_dir = os.path.join(os.getcwd(), "logs")
+os.makedirs(logs_dir, exist_ok=True)
+LOG_FILE_PATH = os.path.join(logs_dir, LOG_FILE)
 
-LOG_FILE_PATH=os.path.join(logs_path,LOG_FILE)
 #All log messages of current exec will be written into the file at LOG_FILE_PATH.
 '''
 Level: Set to logging.INFO (or configurable) to capture informational messages and above.

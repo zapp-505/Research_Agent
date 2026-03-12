@@ -17,6 +17,7 @@ dependencies = [
     "langchain-groq>=1.1.2",
     "langgraph>=1.0.8",
     "langgraph-checkpoint-mongodb>=0.3.1",
+    "motor>=3.7.1",
     "pydantic>=2.12.5",
     "pymongo>4.0",
     "python-dotenv>=1.2.1",

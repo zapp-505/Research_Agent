@@ -21,3 +21,7 @@ logging.basicConfig(
     format="[ %(asctime)s ] %(lineno)d %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
 )
+
+# Named logger — import this in other modules:
+# from src.logging.logger import logger
+logger = logging.getLogger("research_agent")

@@ -20,6 +20,12 @@ class InterpretedContext(BaseModel):
     assumptions: list[str]
     confidence: Literal["high", "medium", "low"]
 
+class Persona(BaseModel):
+    domain: str
+    name: str
+    system_prompt: str
+    role: str
+
 
 class State(TypedDict):
     """
@@ -43,6 +49,11 @@ class State(TypedDict):
     is_confirmed:        bool
     iteration_count:     int
     user_corrections:    Annotated[List[str], operator.add]
+    personas:            Optional[List[Persona]]
+    current_speaker_idx: int
+    round_number:        int
+    is_gauntlet_complete: bool 
+    final_report:         Optional[str]
 
 
 # Alias kept for any legacy references

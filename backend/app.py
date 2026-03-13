@@ -5,9 +5,9 @@ from pydantic import BaseModel
 from typing import Optional
 from langgraph.types import Command
 
-from src.Research_Agent.graph.graph_builder import GraphBuilder
 from src.auth import get_current_user
-
+from src.Research_Agent.graph.graph_builder import GraphBuilder
+from src.db.mongo_client import MongoDB
 app = FastAPI()
 
 # Enable CORS for frontend
@@ -26,6 +26,24 @@ class ChatStartRequest(BaseModel):
 class ChatResumeRequest(BaseModel):
     thread_id: str
     user_response: str
+
+
+
+agent = None   # will be set in startup
+"""
+@app.on_event("startup") and @app.on_event("shutdown") are built in lifecycle hooks. 
+They let you run code when the application starts or stops:
+"""
+@app.on_event("startup")
+async def startup():
+    await MongoDB.connect()         # 1. Connect DB first
+    global agent
+    builder = GraphBuilder()        # 2. Now safe to build graph (MongoDB.client is ready)
+    agent = builder.build()         # 3. Compile and store
+
+@app.on_event("shutdown")
+async def shutdown():
+    await MongoDB.close()
 
 
 # ============= Helpers =============

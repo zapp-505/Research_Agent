@@ -11,7 +11,8 @@ The conditional edge out of classify_node reads `is_confirmed`:
 """
 
 from langgraph.graph import StateGraph, START, END
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph_checkpoint_mongodb import AsyncMongoDBSaver
+from src.db.mongo_client import MongoDB
 
 from src.Research_Agent.state.state import State
 from src.Research_Agent.nodes.analyze_node import analyze_node
@@ -37,7 +38,7 @@ class GraphBuilder:
 
     def __init__(self):
         #n-memory database for agent's conversation history
-        self.memory = MemorySaver()
+        self.memory = AsyncMongoDBSaver(MongoDB.client)
 
     def build(self):
         """
@@ -67,7 +68,13 @@ class GraphBuilder:
 
         workflow.add_edge("research", END)
 
-        # Compile with MemorySaver so interrupt() / resume works across HTTP requests   
+        # Every time a node runs, the current State (inputs, outputs, metadata) is checkpointed.
+        # If the workflow is interrupted (e.g., an HTTP request ends mid-execution), you can later
+        # resume() and it will pick up from the last saved node instead of starting over.
+        # The persisted state includes the conversation history, node outputs,
+        # and routing decisions, so the agent can maintain continuity across multiple requests.
+        # Without a checkpointer, the graph runs in memory only — once execution
+        # ends, all intermediate state is lost.
         return workflow.compile(checkpointer=self.memory)
 
 

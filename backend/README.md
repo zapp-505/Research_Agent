@@ -8,11 +8,16 @@ FastAPI server that exposes the LangGraph research agent over HTTP, secured with
 
 ```
 backend/
-├── app.py                          # FastAPI app — all HTTP endpoints
+├── app.py                          # FastAPI app bootstrap (CORS, startup, router registration)
 ├── main.py                         # Entrypoint stub
 ├── requirements.txt                # Python dependencies
 ├── pyproject.toml
 └── src/
+    ├── routers/
+    │   ├── index.py                # Public health/info endpoint(s)
+    │   ├── auth.py                 # Firebase verification endpoint(s)
+    │   ├── chat.py                 # /chat/start and /chat/resume + interrupt/resume helper
+    │   └── history.py              # Chat history/summary/delete endpoints
     ├── config.py                   # Loads env vars (API keys, Firebase path)
     ├── constants.py                # LLM model names, temperature constants
     ├── auth.py                     # Firebase Admin init + get_current_user dependency
@@ -81,8 +86,24 @@ Server runs on `http://localhost:8000`.
 | GET    | `/auth/verify` | Yes  | Verifies Firebase token, returns uid/email/name  |
 | POST   | `/chat/start`  | Yes  | Starts a new research conversation               |
 | POST   | `/chat/resume` | Yes  | Resumes a paused conversation                    |
+| GET    | `/chat/{thread_id}/history` | Yes | Returns full message history for one thread |
+| GET    | `/chat/{thread_id}/summary` | Yes | Returns compact summary for one thread |
+| DELETE | `/chat/{thread_id}/history` | Yes | Deletes all persisted messages for one thread |
 
 All protected endpoints require `Authorization: Bearer <Firebase ID token>`.
+
+## Router Registration Pattern
+
+FastAPI equivalent of Flask `register_blueprint()` is used in `app.py`:
+
+```python
+app.include_router(index_router)
+app.include_router(auth_router)
+app.include_router(chat_router)
+app.include_router(history_router)
+```
+
+This keeps route handlers in focused modules and leaves `app.py` as the application bootstrap file.
 
 ### POST /chat/start
 

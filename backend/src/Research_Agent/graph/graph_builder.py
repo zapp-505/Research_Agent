@@ -79,5 +79,5 @@ class GraphBuilder:
 
 
 # Module-level singleton — shared across all FastAPI requests
-_graph_builder = GraphBuilder()
-compiled_graph = _graph_builder.build()
+#_graph_builder = GraphBuilder()
+#compiled_graph = _graph_builder.build()

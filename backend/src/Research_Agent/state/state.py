@@ -52,6 +52,7 @@ class State(TypedDict):
     personas:            Optional[List[Persona]]
     current_speaker_idx: int
     round_number:        int
+    expert_critique:     Annotated[List[dict], operator.add]
     is_gauntlet_complete: bool 
     final_report:         Optional[str]
 

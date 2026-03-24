@@ -28,9 +28,10 @@ Full flow:
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode
-from langgraph_checkpoint_mongodb import AsyncMongoDBSaver
+from langgraph.checkpoint.mongodb import MongoDBSaver
+from pymongo import MongoClient
 
-from src.db.mongo_client import MongoDB
+from src.config import MONGODB_URI
 from src.Research_Agent.state.state import State
 from src.Research_Agent.nodes.analyze_node import analyze_node
 from src.Research_Agent.nodes.present_node import present_node
@@ -80,12 +81,24 @@ def route_after_blue_team(state: State) -> str:
 # ── GraphBuilder ──────────────────────────────────────────────────────────────
 
 class GraphBuilder:
-    """Builds and compiles the Research Agent LangGraph with MongoDB checkpointing."""
+    """Builds and compiles the Research Agent LangGraph.
 
-    def __init__(self):
-        # AsyncMongoDBSaver replaces MemorySaver — state is persisted to MongoDB
-        # so sessions survive server restarts and can be resumed by thread_id.
-        self.memory = AsyncMongoDBSaver(MongoDB.client)
+    Args:
+        checkpointer: Optional LangGraph checkpointer to use.
+            - Production: pass MongoDBSaver(MongoClient(MONGODB_URI))
+            - Testing:    pass MemorySaver() to avoid needing Atlas
+            - Default:    MongoDBSaver is created automatically using MONGODB_URI
+    """
+
+    def __init__(self, checkpointer=None):
+        if checkpointer is not None:
+            self.memory = checkpointer
+        else:
+            # Production default — connects to Atlas at construction time.
+            # MongoDBSaver uses sync pymongo but exposes async wrappers
+            # via run_in_executor so graph.astream() works correctly.
+            sync_client  = MongoClient(MONGODB_URI)
+            self.memory  = MongoDBSaver(sync_client)
 
     def build(self):
         """Build and return the compiled LangGraph app."""

@@ -11,7 +11,7 @@ def moderator_node(state: State) -> dict:
 
     #Default Value. If the key "personas" does not exist in the dictionary, Python will return this empty list instead of crashing.
     personas = state.get("personas",[])
-    critiques = state.get("expert_critiques",[])
+    critiques = state.get("expert_critique", [])   # NOTE: no trailing 's'
 
     total_experts = len(personas)
 

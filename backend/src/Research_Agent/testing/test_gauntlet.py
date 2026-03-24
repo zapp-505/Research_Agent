@@ -17,9 +17,9 @@ the user types a response, and execution resumes with Command(resume=...).
 import asyncio
 import uuid
 from langgraph.types import Command
+from langgraph.checkpoint.memory import MemorySaver
 
 from src.logging.logger import logger
-from src.db.mongo_client import MongoDB
 from src.Research_Agent.graph.graph_builder import GraphBuilder
 
 
@@ -77,9 +77,9 @@ async def main():
     print("  🔬  Research Agent — Gauntlet CLI Test Harness")
     print("═" * 60)
 
-    # 1. Connect MongoDB and build graph
-    await MongoDB.connect()
-    builder = GraphBuilder()
+    # Build graph with MemorySaver — no Atlas needed for CLI testing.
+    # Production (app.py) will use MongoDBSaver for persistence.
+    builder = GraphBuilder(checkpointer=MemorySaver())
     graph   = builder.build()
     logger.info("Graph compiled successfully")
 
@@ -164,9 +164,6 @@ async def main():
     print(f"\n{'═' * 60}")
     print("  ✅  Session complete.")
     print("═" * 60 + "\n")
-
-    # 8. Close MongoDB connection
-    await MongoDB.close()
 
 
 if __name__ == "__main__":

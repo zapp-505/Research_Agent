@@ -6,8 +6,8 @@ from chromadb import Client
 from semanticscholar import SemanticScholar
 
 dotenv.load_dotenv()
-tavily_api_key = os.getenv("TAVILY_API")
-print(f"Tavily API Key: {tavily_api_key}")
+tavily_api_key = os.getenv("TAVILY_API_KEY")
+#print(f"Tavily API Key: {tavily_api_key}")
 # Step 1. Instantiating your TavilyClient
 
 tavily_client = TavilyClient(api_key=tavily_api_key)

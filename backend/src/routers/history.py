@@ -1,14 +1,20 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from src.auth import get_current_user
-from src.db.chat_history import get_chat_history, get_chat_summary, delete_chat_history
+from src.db.chat_history import get_thread_messages, get_chat_summary, get_thread_report
+from src.db.session_store import get_session
 
 router = APIRouter(prefix="/chat", tags=["history"])
 
 
 @router.get("/{thread_id}/history")
-async def get_thread_history(thread_id: str, user: dict = Depends(get_current_user)):
-    messages = await get_chat_history(thread_id)
+async def get_thread_history(thread_id: str, req: Request, user: dict = Depends(get_current_user)):
+    agent = req.app.state.agent
+    session = await get_session(thread_id, user["uid"])
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found or not owned by user")
+
+    messages = await get_thread_messages(agent, thread_id)
     return {
         "thread_id": thread_id,
         "message_count": len(messages),
@@ -17,16 +23,21 @@ async def get_thread_history(thread_id: str, user: dict = Depends(get_current_us
 
 
 @router.get("/{thread_id}/summary")
-async def get_thread_summary(thread_id: str, user: dict = Depends(get_current_user)):
-    summary = await get_chat_summary(thread_id)
+async def get_thread_summary_route(thread_id: str, req: Request, user: dict = Depends(get_current_user)):
+    agent = req.app.state.agent
+    session = await get_session(thread_id, user["uid"])
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found or not owned by user")
+
+    summary = await get_chat_summary(agent, thread_id)
     return summary
 
+@router.get("/{thread_id}/report")
+async def get_thread_report_route(thread_id: str, req: Request, user: dict = Depends(get_current_user)):
+    agent = req.app.state.agent
+    session = await get_session(thread_id, user["uid"])
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found or not owned by user")
 
-@router.delete("/{thread_id}/history")
-async def delete_thread_history(thread_id: str, user: dict = Depends(get_current_user)):
-    deleted = await delete_chat_history(thread_id)
-    return {
-        "thread_id": thread_id,
-        "deleted": deleted,
-        "message": "Chat history deleted." if deleted else "No history found to delete.",
-    }
+    report = await get_thread_report(agent, thread_id)
+    return {"thread_id": thread_id, "report": report}

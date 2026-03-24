@@ -10,7 +10,8 @@ pydantic
 python-dotenv
 chromadb
 semanticscholar
-firebase-admin
+passlib[bcrypt]
+pyjwt
 pymongo>4.0
 certifi
 langgraph-checkpoint-mongodb

@@ -64,5 +64,5 @@ def classify_node(state: State) -> dict:
         return {
             "is_confirmed": False,
             "user_corrections": [user_response],  # operator.add appends this
-            "messages": [{"role": "user", "content": last_user_message}]
+            "messages": [{"role": "user", "content": user_response}]
         }

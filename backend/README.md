@@ -1,6 +1,6 @@
 # Backend
 
-FastAPI server that exposes the LangGraph research agent over HTTP, secured with Firebase authentication.
+FastAPI server that exposes the LangGraph research agent over HTTP, secured with JWT authentication.
 
 ---
 
@@ -15,12 +15,12 @@ backend/
 └── src/
     ├── routers/
     │   ├── index.py                # Public health/info endpoint(s)
-    │   ├── auth.py                 # Firebase verification endpoint(s)
+    │   ├── auth.py                 # JWT verification endpoint(s)
     │   ├── chat.py                 # /chat/start and /chat/resume + interrupt/resume helper
     │   └── history.py              # Chat history/summary/delete endpoints
-    ├── config.py                   # Loads env vars (API keys, Firebase path)
+    ├── config.py                   # Loads env vars (API keys, DB URI)
     ├── constants.py                # LLM model names, temperature constants
-    ├── auth.py                     # Firebase Admin init + get_current_user dependency
+    ├── auth.py                     # JWT helpers + get_current_user dependency
     └── Research_Agent/
         ├── state/state.py          # Shared graph state (TypedDict + Pydantic models)
         ├── graph/graph_builder.py  # Wires nodes into the LangGraph StateGraph
@@ -62,11 +62,10 @@ Create a `.env` file in `backend/`:
 GROQ_API_KEY=your_groq_api_key
 TAVILY_API_KEY=your_tavily_api_key
 GEMINI_API_KEY=your_gemini_api_key          # optional, not in active flow
-FIREBASE_SERVICE_ACCOUNT=path/to/serviceAccountKey.json
+JWT_SECRET_KEY=your_long_random_secret
 ```
 
-Get your Firebase service account key from:
-**Firebase Console → Project Settings → Service Accounts → Generate new private key**
+Use a strong random value for `JWT_SECRET_KEY` in all environments.
 
 ### 4. Run the server
 
@@ -83,14 +82,14 @@ Server runs on `http://localhost:8000`.
 | Method | Path           | Auth | Description                                      |
 |--------|----------------|------|--------------------------------------------------|
 | GET    | `/index`       | No   | Health check                                     |
-| GET    | `/auth/verify` | Yes  | Verifies Firebase token, returns uid/email/name  |
+| GET    | `/auth/verify` | Yes  | Verifies JWT token, returns uid/email/name  |
 | POST   | `/chat/start`  | Yes  | Starts a new research conversation               |
 | POST   | `/chat/resume` | Yes  | Resumes a paused conversation                    |
 | GET    | `/chat/{thread_id}/history` | Yes | Returns full message history for one thread |
 | GET    | `/chat/{thread_id}/summary` | Yes | Returns compact summary for one thread |
 | DELETE | `/chat/{thread_id}/history` | Yes | Deletes all persisted messages for one thread |
 
-All protected endpoints require `Authorization: Bearer <Firebase ID token>`.
+All protected endpoints require `Authorization: Bearer <JWT token>`.
 
 ## Router Registration Pattern
 
@@ -130,27 +129,13 @@ Response: { "status": "complete", "message": "<research report>", "thread_id": "
 
 ## Authentication (`src/auth.py`)
 
-Firebase Admin SDK verifies ID tokens server-side. No passwords are stored.
+The backend uses native JWT authentication.
 
 **Flow:**
-1. Client signs in with Firebase (email/password, Google, etc.) and gets an **ID token**
-2. Client sends the token on every request: `Authorization: Bearer <id_token>`
-3. `get_current_user` dependency calls `firebase_admin.auth.verify_id_token(token)`
-4. Returns decoded claims dict: `{ "uid": "...", "email": "...", "name": "..." }`
-
-**Getting a token from Python (Streamlit / script):**
-
-```python
-import requests
-
-resp = requests.post(
-    "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword"
-    "?key=YOUR_FIREBASE_WEB_API_KEY",
-    json={"email": "user@example.com", "password": "pass", "returnSecureToken": True}
-)
-id_token = resp.json()["idToken"]
-headers = {"Authorization": f"Bearer {id_token}"}
-```
+1. Client obtains a JWT signed with `JWT_SECRET_KEY`
+2. Client sends the token on every request: `Authorization: Bearer <token>`
+3. `get_current_user` decodes and validates the token server-side
+4. The route receives claims like `{ "uid": "...", "email": "..." }`
 
 ---
 
@@ -235,7 +220,7 @@ This is the core mechanism that lets the agent pause mid-execution across two se
 | `tavily-python`    | Web search API client                        |
 | `pydantic`         | Data validation / structured LLM output      |
 | `python-dotenv`    | Load `.env` file                             |
-| `firebase-admin`   | Firebase token verification (server-side)    |
+| `pyjwt`            | JWT token encode/verify (server-side)        |
 | `chromadb`         | Vector store (available, not in active flow) |
 | `semanticscholar`  | Academic search (available, not in active flow) |
 

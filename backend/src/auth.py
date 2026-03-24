@@ -1,47 +1,46 @@
-import firebase_admin
-from firebase_admin import credentials, auth
+import jwt
+import os
+from datetime import datetime, timedelta, timezone
+from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-from src.config import FIREBASE_SERVICE_ACCOUNT
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("JWT_SECRET_KEY is required but missing")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
-# Initialise the Firebase Admin SDK once at import time.
-# If FIREBASE_SERVICE_ACCOUNT is a path to a service-account JSON file, use it;
-# otherwise fall back to Application Default Credentials (useful on GCP / Cloud Run).
-if not firebase_admin._apps:
-    if FIREBASE_SERVICE_ACCOUNT:
-        cred = credentials.Certificate(FIREBASE_SERVICE_ACCOUNT)
-    else:
-        cred = credentials.ApplicationDefault()
-    firebase_admin.initialize_app(cred)
-
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 _bearer = HTTPBearer()
 
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
 
-def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
-) -> dict:
+def get_password_hash(password):
+    return pwd_context.hash(password)
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(_bearer)) -> dict:
     """
-    FastAPI dependency that verifies a Firebase ID token sent as
-    `Authorization: Bearer <id_token>` and returns the decoded token claims.
-    Raises HTTP 401 on any failure.
+    Decodes the native PyJWT token sent from Streamlit.
     """
     token = credentials.credentials
     try:
-        decoded = auth.verify_id_token(token)
-    except auth.ExpiredIdTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has expired",
-        )
-    except auth.InvalidIdTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-        )
-    except Exception:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        uid: str = payload.get("sub")
+        email: str = payload.get("email")
+        if uid is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
+        return {"uid": uid, "email": email}
+    except jwt.PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
         )
-    return decoded

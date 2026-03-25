@@ -97,6 +97,24 @@ Response: { "status": "complete", "message": "..." , "thread_id": "uuid" }
 
 See [backend/README.md](backend/README.md) for full setup instructions.
 
+### Run Backend + Streamlit Together (Windows)
+
+From the repository root, run:
+
+```powershell
+.\start-dev.ps1
+```
+
+If your conda environment name is not `venv`, pass it explicitly:
+
+```powershell
+.\start-dev.ps1 -CondaEnv <your_env_name>
+```
+
+This opens two terminals:
+- Uvicorn backend at `http://localhost:8000`
+- Streamlit frontend at `http://localhost:8501`
+
 ---
 
 ## License

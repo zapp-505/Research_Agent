@@ -1,5 +1,6 @@
 import streamlit as st
 from services import native_auth
+from services.api import ApiError
 from components import sidebar, chat_area, input_bar
 
 st.set_page_config(page_title="Research Agent", layout="wide", page_icon="🤖")
@@ -40,6 +41,8 @@ def render_login():
                     st.session_state["user_email"] = email
                     st.success("Logged in successfully!")
                     st.rerun()
+                except ApiError as e:
+                    st.error(str(e))
                 except Exception as e:
                     st.error(f"Login failed: {e}")
                     
@@ -55,6 +58,8 @@ def render_login():
                     st.session_state["user_email"] = email
                     st.success("Account created and logged in!")
                     st.rerun()
+                except ApiError as e:
+                    st.error(str(e))
                 except Exception as e:
                     st.error(f"Sign up failed: {e}")
 

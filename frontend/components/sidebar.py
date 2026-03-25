@@ -1,9 +1,23 @@
 import streamlit as st
 from services import api
 
+
+def _reset_local_state():
+    st.session_state["token"] = None
+    st.session_state["user_email"] = None
+    st.session_state["thread_id"] = None
+    st.session_state["phase"] = "idle"
+    st.session_state["messages"] = []
+    st.session_state["interrupt_type"] = None
+    st.session_state["last_response"] = None
+
 def render_sidebar():
     with st.sidebar:
         st.title("Research Agent")
+
+        if st.button("Logout", use_container_width=True):
+            _reset_local_state()
+            st.rerun()
         
         if st.button("➕ New Chat", use_container_width=True, type="primary"):
             st.session_state["thread_id"] = None
@@ -42,5 +56,9 @@ def render_sidebar():
                         st.session_state["last_response"] = {}
                         
                         st.rerun()
+        except api.AuthExpiredError as e:
+            st.warning(str(e))
+            _reset_local_state()
+            st.rerun()
         except Exception as e:
             st.error(f"Failed to load sessions: {e}")

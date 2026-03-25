@@ -1,6 +1,16 @@
 import streamlit as st
 from services import api
 
+
+def _reset_auth_and_flow_state():
+    st.session_state["token"] = None
+    st.session_state["user_email"] = None
+    st.session_state["thread_id"] = None
+    st.session_state["phase"] = "idle"
+    st.session_state["messages"] = []
+    st.session_state["interrupt_type"] = None
+    st.session_state["last_response"] = None
+
 def handle_start_chat(query: str):
     token = st.session_state.get("token")
     
@@ -8,6 +18,12 @@ def handle_start_chat(query: str):
         try:
             resp = api.chat_start(token, query)
             process_api_response(resp)
+        except api.AuthExpiredError as e:
+            st.warning(str(e))
+            _reset_auth_and_flow_state()
+            st.rerun()
+        except api.ApiError as e:
+            st.error(str(e))
         except Exception as e:
             st.error(f"Error starting chat: {e}")
 
@@ -19,6 +35,12 @@ def handle_resume_chat(user_response: str):
         try:
             resp = api.chat_resume(token, thread_id, user_response)
             process_api_response(resp)
+        except api.AuthExpiredError as e:
+            st.warning(str(e))
+            _reset_auth_and_flow_state()
+            st.rerun()
+        except api.ApiError as e:
+            st.error(str(e))
         except Exception as e:
             st.error(f"Error resuming chat: {e}")
 
@@ -33,6 +55,12 @@ def process_api_response(resp: dict):
         if st.session_state["thread_id"]:
             history = api.get_thread_history(st.session_state["token"], st.session_state["thread_id"])
             st.session_state["messages"] = history.get("messages", [])
+    except api.AuthExpiredError as e:
+        st.warning(str(e))
+        _reset_auth_and_flow_state()
+        st.rerun()
+    except api.ApiError as e:
+        st.error(str(e))
     except Exception as e:
         print(f"Fetch history failed inside input_bar: {e}")
         

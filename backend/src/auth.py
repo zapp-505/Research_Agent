@@ -2,6 +2,8 @@ import jwt
 import os
 from datetime import datetime, timedelta, timezone
 from passlib.context import CryptContext
+from passlib.exc import UnknownHashError
+import hashlib
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
@@ -15,13 +17,23 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 _bearer = HTTPBearer()
 
 def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return pwd_context.verify(plain_password, hashed_password)
+    except (UnknownHashError, ValueError, TypeError):
+        return False
 
 def get_password_hash(password):
     return pwd_context.hash(password)
 
 def create_access_token(data: dict):
     to_encode = data.copy()
+
+    # Ensure JWT payload is JSON-serializable (important for Mongo ObjectId in `sub`)
+    if "sub" in to_encode and to_encode["sub"] is not None:
+        to_encode["sub"] = str(to_encode["sub"])
+    if "email" in to_encode and to_encode["email"] is not None:
+        to_encode["email"] = str(to_encode["email"])
+
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)

@@ -1,29 +1,78 @@
 import jwt
 import os
-from datetime import datetime, timedelta, timezone
-from passlib.context import CryptContext
-from passlib.exc import UnknownHashError
+import binascii
+import base64
 import hashlib
+import hmac
+from datetime import datetime, timedelta, timezone
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+try:
+    import bcrypt
+except Exception:
+    bcrypt = None
 
 SECRET_KEY = os.environ.get("JWT_SECRET_KEY")
 if not SECRET_KEY:
     raise RuntimeError("JWT_SECRET_KEY is required but missing")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
+PBKDF2_ITERATIONS = 390000
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 _bearer = HTTPBearer()
 
 def verify_password(plain_password, hashed_password):
-    try:
-        return pwd_context.verify(plain_password, hashed_password)
-    except (UnknownHashError, ValueError, TypeError):
+    if not hashed_password or not plain_password:
         return False
 
+    if hashed_password.startswith("pbkdf2_sha256$"):
+        return _verify_pbkdf2_password(plain_password, hashed_password)
+
+    # Backward-compatible verification for legacy bcrypt hashes.
+    if hashed_password.startswith("$2") and bcrypt is not None:
+        try:
+            return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+        except ValueError:
+            # Some bcrypt backends error on >72-byte inputs instead of truncating.
+            return bcrypt.checkpw(plain_password.encode("utf-8")[:72], hashed_password.encode("utf-8"))
+
+    return False
+
 def get_password_hash(password):
-    return pwd_context.hash(password)
+    return _hash_pbkdf2_password(password)
+
+def _hash_pbkdf2_password(password: str) -> str:
+    salt = os.urandom(16)
+    dk = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt,
+        PBKDF2_ITERATIONS,
+        dklen=32,
+    )
+    salt_b64 = base64.b64encode(salt).decode("ascii")
+    hash_b64 = base64.b64encode(dk).decode("ascii")
+    return f"pbkdf2_sha256${PBKDF2_ITERATIONS}${salt_b64}${hash_b64}"
+
+def _verify_pbkdf2_password(password: str, stored_hash: str) -> bool:
+    try:
+        _, iterations_str, salt_b64, hash_b64 = stored_hash.split("$", 3)
+        iterations = int(iterations_str)
+        salt = base64.b64decode(salt_b64.encode("ascii"))
+        expected_hash = base64.b64decode(hash_b64.encode("ascii"))
+    except (ValueError, TypeError, binascii.Error):
+        return False
+
+    candidate = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt,
+        iterations,
+        dklen=len(expected_hash),
+    )
+    return hmac.compare_digest(candidate, expected_hash)
 
 def create_access_token(data: dict):
     to_encode = data.copy()

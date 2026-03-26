@@ -27,7 +27,7 @@ def classify_node(state: State) -> dict:
     and decide what to do next. Stores classification in is_confirmed and may
     append a user correction.
     """
-    llm = get_llm(temperature=0.0)
+    llm = get_llm(temperature=0.0, use_fast_model=True)
 
     # The last message in state.messages is the user's reply to our summary
     messages = state.get("messages", [])

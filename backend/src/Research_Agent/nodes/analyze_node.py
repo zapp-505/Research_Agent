@@ -31,7 +31,7 @@ def analyze_node(state: State) -> dict:
     Phase 1  Interpret the raw user input into a structured InterpretedContext.
     Returns a partial state update dict.
     """
-    llm = get_llm(temperature=0.3)
+    llm = get_llm(temperature=0.3, use_fast_model=True)
     structured_llm = llm.with_structured_output(InterpretedContext)
 
     raw_input = state.get("raw_input", "")

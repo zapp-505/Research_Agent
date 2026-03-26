@@ -1,3 +1,30 @@
-# Runtime logs
-/logs/
-*.log
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Frontend builds
+ai-frontend/build/
+ai-frontend/dist/
+
+# Python caching
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Python virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDEs and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
